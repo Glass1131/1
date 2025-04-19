@@ -1,0 +1,22 @@
+name: test
+version: '1.0-SNAPSHOT'
+main: org.blog.test.MyPlugin
+api-version: '1.21'
+
+
+
+commands:
+  게임:
+    description: "좀비 웨이브 게임을 시작합니다."
+    usage: "/게임"
+    permission: "plugin.start"
+
+  게임취소:
+    description: "현재 진행 중인 게임을 취소합니다."
+    usage: "/게임취소"
+    permission: "plugin.stop"
+
+  get-item:
+    description: "커스텀 아이템을 얻습니다."
+    usage: "/get-item <아이템이름>"
+    permission: "customize.use"
