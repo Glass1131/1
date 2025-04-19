@@ -3,8 +3,6 @@ version: '1.0-SNAPSHOT'
 main: org.blog.test.MyPlugin
 api-version: '1.21'
 
-
-
 commands:
   게임:
     description: "좀비 웨이브 게임을 시작합니다."
@@ -20,3 +18,9 @@ commands:
     description: "커스텀 아이템을 얻습니다."
     usage: "/get-item <아이템이름>"
     permission: "customize.use"
+
+  round:
+    description: "게임 라운드를 관리합니다. (게임 진행 중에만 사용 가능)"
+    usage: "/round [add|remove|reset|set] <값>"
+    permission: "plugin.round"
+    permission-message: "관리자 권한이 없어 실행되지 않습니다."

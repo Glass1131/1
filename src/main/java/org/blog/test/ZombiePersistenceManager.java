@@ -6,6 +6,7 @@ import org.bukkit.entity.Zombie;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.plugin.java.JavaPlugin;
 
+//이거 실행되는 건지 모르겠는데 일단 놔둠
 public class ZombiePersistenceManager {
     private static final long ZOMBIE_PERSISTENCE_INTERVAL_TICKS = 200L;
     private final JavaPlugin plugin;

@@ -95,13 +95,13 @@ public class HeatSystem {
         // 발견된 온도 변화를 일으키는 블록 타입을 저장할 Set
         Set<Material> foundTemperatureMaterials = new HashSet<>();
 
-        // 주변 NEARBY_BLOCK_RADIUS 범위 내의 블록 타입 확인 및 Set에 추가
+        // 주변 NEARBY_BLOCK_RADIUS 범위 내의 블록 타입 확인 및 Set 에 추가
         for (int x = -NEARBY_BLOCK_RADIUS; x <= NEARBY_BLOCK_RADIUS; x++) {
             for (int y = -NEARBY_BLOCK_RADIUS; y <= NEARBY_BLOCK_RADIUS; y++) {
                 for (int z = -NEARBY_BLOCK_RADIUS; z <= NEARBY_BLOCK_RADIUS; z++) {
                     // 플레이어 위치 기준 상대적 위치의 블록 타입 확인
                     Material type = loc.clone().add(x, y, z).getBlock().getType();
-                    // 온도 변화를 일으키는 블록 타입인지 확인하고 Set에 추가
+                    // 온도 변화를 일으키는 블록 타입인지 확인하고 Set 에 추가
                     if (type == Material.ICE ||
                             type == Material.LAVA ||
                             type == Material.FURNACE ||
@@ -118,19 +118,19 @@ public class HeatSystem {
 
     private int getTempChange(Set<Material> foundTemperatureMaterials) {
         int tempChange = 0;
-        // 발견된 온도 변화 블록 타입 Set을 기반으로 최종 온도 변화량 계산
-        // Set에는 중복된 Material 타입이 없습니다.
+        // 발견된 온도 변화 블록 타입 Set 을 기반으로 최종 온도 변화량 계산
+        // Set 에는 중복된 Material 타입이 없습니다.
         // 각 Material 타입별로 해당 온도 변화량을 더합니다.
         for (Material type : foundTemperatureMaterials) {
             if (type == Material.ICE) {
                 tempChange += ICE_TEMPERATURE_CHANGE;
             } else if (type == Material.LAVA) {
                 tempChange += LAVA_TEMPERATURE_CHANGE;
-            } else if (type == Material.FURNACE) { // FURNACE가 Set에 있다면 추가
+            } else if (type == Material.FURNACE) { // FURNACE 가 Set 에 있다면 추가
                 tempChange += FURNACE_CAMPFIRE_TEMPERATURE_CHANGE;
-            } else if (type == Material.CAMPFIRE) { // CAMPFIRE가 Set에 있다면 추가
-                tempChange += FURNACE_CAMPFIRE_TEMPERATURE_CHANGE; // FURNACE와 같은 상수지만, 별도로 더함
-            } else if (type == Material.SOUL_CAMPFIRE) { // 영혼 모닥불이 Set에 있다면 추가
+            } else if (type == Material.CAMPFIRE) { // CAMPFIRE 가 Set 에 있다면 추가
+                tempChange += FURNACE_CAMPFIRE_TEMPERATURE_CHANGE; // FURNACE 와 같은 상수지만, 별도로 더함
+            } else if (type == Material.SOUL_CAMPFIRE) { // 영혼 모닥불이 Set 에 있다면 추가
                 tempChange += SOUL_CAMPFIRE_TEMPERATURE_CHANGE;
             }
         }
@@ -196,7 +196,7 @@ public class HeatSystem {
             // 이 else 블록 범위 (-2 ~ 2) 와 배열 길이 (5, 인덱스 0 ~ 4)를 고려한 안전 장치
             stateIndex = Math.max(0, Math.min(temperatureStates.length - 1, stateIndex));
 
-            return temperatureStates[stateIndex]; // 계산된 stateIndex를 사용하여 배열 접근
+            return temperatureStates[stateIndex]; // 계산된 stateIndex 를 사용하여 배열 접근
         }
     }
 }
