@@ -7,10 +7,7 @@ import Biomes.Deep_dark;
 import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.block.Biome;
-import org.bukkit.entity.EntityType;
-import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Player;
-import org.bukkit.entity.Zombie;
+import org.bukkit.entity.*;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -28,8 +25,8 @@ import org.bukkit.event.player.PlayerJoinEvent;
 
 /**
  * Since 2025 ~
- * 제작자: Glass1131, Gemini 2.5 pro, Gemini 2.5 flash, GPT4o, GPT4 mini, 추후 추가될 사람: Barity_
- * 목적: 좀비 웨이브 게임 및 기타 시스템 구현
+ * 제작자: Glass1131, Gemini, GPT, 추후 추가될 사람: Barity_
+ * 목적: ???
  */
 
 public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter 제거
@@ -51,9 +48,7 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
     public static final String NO_GAME_IN_PROGRESS = "진행 중인 게임이 없습니다.";
     public static final String GAME_FORCED_STOPPED = "⚠ 게임이 강제 종료되었습니다! 남아있던 좀비들이 사라졌습니다.";
     public static final String WORLD_NOT_FOUND_WARNING = "월드 'world'를 찾을 수 없습니다! 좀비를 소환할 수 없습니다.";
-    public static final String INVALID_ENTITY_TYPE_WARNING = "유효하지 않은 엔티티 타입을 소환하려 했습니다: ";
-    public static final String SPAWN_ERROR_SEVERE = "엔티티 소환 오류";
-    // ROUND_SUBCOMMANDS 상수는 CustomCommand로 이동됨
+
 
 
     // CustomCommand 에서 접근할 수 있도록 public 으로 변경 (또는 getter 추가)
@@ -65,6 +60,7 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
     public GameScoreboard gameScoreboard;
     private ThirstSystem thirstSystem;
     private HeatSystem heatSystem;
+    private final Random random = new Random();
 
     // 갈증 레벨별 색상 상수 (startActionBarScheduler 에서 사용)
     private static final NamedTextColor THIRST_COLOR_100 = NamedTextColor.BLACK;
@@ -90,11 +86,12 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
         // 모든 명령어를 customCommandHandler 인스턴스에 등록
         Objects.requireNonNull(this.getCommand("get-item")).setExecutor(customCommandHandler);
         Objects.requireNonNull(this.getCommand("get-item")).setTabCompleter(customCommandHandler);
-        Objects.requireNonNull(getCommand("게임")).setExecutor(customCommandHandler);
+        Objects.requireNonNull(getCommand("게임시작")).setExecutor(customCommandHandler);
         Objects.requireNonNull(getCommand("게임취소")).setExecutor(customCommandHandler);
         Objects.requireNonNull(getCommand("round")).setExecutor(customCommandHandler);
         Objects.requireNonNull(getCommand("round")).setTabCompleter(customCommandHandler);
 
+        getServer().getPluginManager().registerEvents(new Biomes.Swamp(), this);
 
         getServer().getPluginManager().registerEvents(new Weaponability(), this);
         // 바이옴 감지 스케줄러 시작
@@ -141,7 +138,7 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
     public void onDisable() {
         getLogger().info("❌ 모든 플러그인이 비활성화되었습니다!");
         // 플러그인 비활성화 시 모든 좀비 제거
-        removeAllZombies();
+        removeGameEntities();
         // 모든 스케줄러 작업 취소
         Bukkit.getScheduler().cancelTasks(this);
         // 스코어보드 초기화 (선택 사항)
@@ -171,7 +168,7 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
         currentRound = 1; // 라운드 초기화
 
         // 모든 좀비 삭제
-        removeAllZombies();
+        removeGameEntities();
         // 게임 관련 반복 작업 취소 (BiomeNotifier, ZombieCount, ZombieChase, Prepare 타이머 등)
         Bukkit.getScheduler().cancelTasks(this);
 
@@ -271,17 +268,22 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
         new BukkitRunnable() {
             @Override
             public void run() {
-                // 살아있는 좀비 (허스크 포함)만 개수 세기
-                long zombieCount = Bukkit.getWorlds().stream()
-                        .flatMap(world -> world.getEntitiesByClass(Zombie.class).stream())
-                        .filter(z -> !z.isDead()) // 사망하지 않은 좀비만 필터링
-                        .count();
+                // 👇 수정: 살아있는 좀비, 보그드, 슬라임의 총 개수 세기 (다양한 엔티티 타입 포함)
+                long totalGameEntities = Bukkit.getWorlds().stream()
+                        .flatMap(world -> world.getEntitiesByClass(LivingEntity.class).stream()) // 모든 LivingEntity 가져오기
+                        .filter(entity -> !entity.isDead()) // 사망하지 않은 엔티티만 필터링
+                        // 👇 우리가 게임 엔티티 (좀비, 보그드, 슬라임)로 간주하는 타입들만 필터링하여 개수 계산
+                        .filter(entity -> entity instanceof Zombie || // 좀비 하위 클래스 (좀비, 허스크, 좀비 주민)
+                                entity instanceof Bogged || // 보그드
+                                entity instanceof Slime)   // 슬라임
+                        .count(); // 필터링된 엔티티들의 총 개수
 
-                gameScoreboard.updateScore("남은 좀비", (int) zombieCount);
+                // 스코어보드에 총 개수 업데이트
+                gameScoreboard.updateScore("남은 좀비", (int) totalGameEntities);
 
-                // 좀비 수가 0이고 게임이 진행 중일 때 다음 라운드로 전환
-                if (zombieCount == 0 && gameInProgress) {
-                    cancel(); // 현재 좀비 수 업데이트 작업 취소
+                // 총 엔티티 수가 0이고 게임이 진행 중일 때 다음 라운드로 전환
+                if (totalGameEntities == 0 && gameInProgress) {
+                    cancel(); // 현재 엔티티 수 업데이트 작업 취소
                     endRound(); // 라운드 종료 처리 (다음 라운드 준비 단계 시작)
                 }
                 // 게임이 중단되면 이 작업도 취소
@@ -289,10 +291,11 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
                     cancel();
                 }
             }
-        }.runTaskTimer(this, 0L, ZOMBIE_COUNT_UPDATE_INTERVAL_TICKS); // 주기적으로 좀비 수 업데이트
+        }.runTaskTimer(this, 0L, ZOMBIE_COUNT_UPDATE_INTERVAL_TICKS); // 주기적으로 엔티티 수 업데이트
     }
 
     // 좀비 스폰 로직
+    // 좀비를 주기적으로 소환하는 메서드
     private void spawnZombies(int extraHealth) {
         World world = Bukkit.getWorld("world");
         if (world == null) {
@@ -301,20 +304,22 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
         }
 
         new BukkitRunnable() {
-            int spawnedZombies = 0;
-            final Random random = new Random();
-            final int zombiesToSpawn = ZOMBIES_PER_ROUND * currentRound;
-            // 현재 설정된 스폰 좌표 범위 사용
-            final int currentMinX = minX;
-            final int currentMaxX = maxX;
-            final int currentMinZ = minZ;
-            final int currentMaxZ = maxZ;
+            int spawnedCount = 0; // 소환된 엔티티 총 개수
+            // Random 필드는 MyPlugin 클래스에 있습니다. (outer class field)
+            // Accessible via outer class scope
+            final int entitiesToSpawn = ZOMBIES_PER_ROUND * currentRound; // 이번 라운드에 소환될 총 엔티티 수
+
+            // 현재 설정된 스폰 좌표 범위 사용 (BiomeNotifier 등에서 변경 가능)
+            final int currentMinX = minX; // outer class field
+            final int currentMaxX = maxX; // outer class field
+            final int currentMinZ = minZ; // outer class field
+            final int currentMaxZ = maxZ; // outer class field
 
 
             @Override
             public void run() {
-                if (spawnedZombies >= zombiesToSpawn) {
-                    cancel(); // 필요한 좀비 수를 모두 스폰했으면 작업 취소
+                if (spawnedCount >= entitiesToSpawn) {
+                    cancel(); // 필요한 엔티티 수를 모두 스폰했으면 작업 취소
                     return;
                 }
 
@@ -328,68 +333,84 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
                 // 잠재적인 스폰 위치 생성 (바이옴 체크를 위해 X, Z, safeY 사용)
                 Location spawnLocation = new Location(world, spawnX, safeY, spawnZ);
 
-                // 스폰 위치의 바이옴을 확인하여 소환할 엔티티 타입 결정
-                Biome biome = world.getBiome(spawnLocation);
-                EntityType entityTypeToSpawn = EntityType.ZOMBIE; // 기본값: 일반 좀비 소환
+                // 소환될 엔티티 타입 결정 (스폰 위치의 바이옴에 따라)
+                Biome spawnBiome = world.getBiome(spawnLocation);
+                EntityType typeToSpawn = EntityType.ZOMBIE;
 
-                if (biome == Biome.DESERT) {
-                    entityTypeToSpawn = EntityType.HUSK; // 사막 바이옴에서는 허스크 소환
+                if (spawnBiome == Biome.DESERT) {
+                    double desertChance = random.nextDouble();
+                    if (desertChance < 0.85) typeToSpawn = EntityType.HUSK;
+                    else typeToSpawn = EntityType.ZOMBIE_VILLAGER;
+                } else if (spawnBiome == Biome.SWAMP) {
+                    double swampChance = random.nextDouble();
+                    if (swampChance < 0.25) {
+                        typeToSpawn = EntityType.ZOMBIE;
+                    } else if (swampChance < 0.60) {
+                        typeToSpawn = EntityType.ZOMBIE_VILLAGER;
+                    } else if (swampChance < 0.80) {
+                        typeToSpawn = EntityType.BOGGED;
+                    } else {
+                        typeToSpawn = EntityType.SLIME;
+                    }
                 }
+                // 다른 바이옴: 기본값 EntityType.ZOMBIE (이미 설정됨)
 
                 // 엔티티 소환 시에는 블록 중앙에 위치시키기 위해 X, Z에 0.5를 더한 Location 사용
                 Location finalSpawnLocation = new Location(world, spawnX + 0.5, safeY, spawnZ + 0.5);
+                LivingEntity spawnedEntity; // 소환된 엔티티를 받을 변수 (Zombie 뿐만 아니라 LivingEntity)
 
-                // 결정된 엔티티 타입을 안전하게 소환
-                Zombie zombie = spawnEntitySafely(finalSpawnLocation, entityTypeToSpawn);
-
-
-                if (zombie != null) {
-                    // 체력 계산 및 설정 로직 (엔티티 타입에 따라 다르게 적용)
-                    if (zombie instanceof org.bukkit.entity.Husk) {
-                        // 허스크인 경우: 기본 최대 체력 10, 추가 체력은 extraHealth/3
-                        Objects.requireNonNull(zombie.getAttribute(Attribute.MAX_HEALTH)).setBaseValue(10.0);
-                        double huskBoostAmount = (double) extraHealth / 3;
-                        double finalHuskHealth = 10.0 + huskBoostAmount;
-                        zombie.setHealth(finalHuskHealth);
-
-                        // 허스크 고유의 속성/효과 추가 (필요하다면 여기에 구현)
-                    } else {
-                        // 일반 좀비인 경우: 기본 BaseValue (20) + extraHealth 만큼 체력 증가
-                        double originalBaseHealth = Objects.requireNonNull(zombie.getAttribute(Attribute.MAX_HEALTH)).getBaseValue();
-                        double zombieTotalHealth = originalBaseHealth + extraHealth;
-                        Objects.requireNonNull(zombie.getAttribute(Attribute.MAX_HEALTH)).setBaseValue(zombieTotalHealth);
-                        zombie.setHealth(zombieTotalHealth);
-                    }
-
-                    // PotionEffectType.SPEED 효과 무한 지속 부여 (모든 좀비/허스크 공통)
-                    zombie.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, Integer.MAX_VALUE, 1, false, false));
+                try {
+                    // 👇 직접 엔티티 소환
+                    spawnedEntity = (LivingEntity) world.spawnEntity(finalSpawnLocation, typeToSpawn);
+                } catch (Exception e) {
+                    // 소환 중 예외 발생 시 로그 기록
+                    getLogger().severe("엔티티 소환 오류: " + typeToSpawn + " at " + finalSpawnLocation + ": " + e.getMessage());
+                    getLogger().severe("Stack Trace:");
+                    // 소환 실패했으므로 이번 스폰 시도는 실패한 것으로 간주 (spawnedCount는 증가시키지 않음)
+                    return; // 이번 스폰 시도는 실패했으므로 run() 메서드 나머지 부분 실행 건너뛰기
                 }
-                spawnedZombies++; // 스폰 시도 횟수 증가
+
+
+                // 👇 엔티티 타입별 추가 설정 및 체력 적용
+                switch (spawnedEntity) {
+                    case Zombie zombie -> {
+                        // 좀비, 허스크, 좀비 주민 공통 체력 설정 방식
+                        if (zombie instanceof Husk) {
+                            // 허스크: 기본 10 + extraHealth/3 만큼 체력 증가
+                            double baseHealth = Objects.requireNonNull(zombie.getAttribute(Attribute.MAX_HEALTH)).getBaseValue();
+                            double huskTotalHealth = baseHealth + (double) extraHealth / 3;
+                            Objects.requireNonNull(zombie.getAttribute(Attribute.MAX_HEALTH)).setBaseValue(huskTotalHealth);
+                            zombie.setHealth(huskTotalHealth);
+                        } else {
+                            // 좀비/좀비 주민: 기본 20 + extraHealth 만큼 체력 증가
+                            double baseHealth = Objects.requireNonNull(zombie.getAttribute(Attribute.MAX_HEALTH)).getBaseValue();
+                            double zombieTotalHealth = baseHealth + extraHealth;
+                            Objects.requireNonNull(zombie.getAttribute(Attribute.MAX_HEALTH)).setBaseValue(zombieTotalHealth);
+                            zombie.setHealth(zombieTotalHealth);
+                        }
+                    }
+                    case Bogged bogged -> {
+                        // 보그드: 기본 16 + extraHealth/2 만큼 체력 증가
+                        double baseHealth = Objects.requireNonNull(bogged.getAttribute(Attribute.MAX_HEALTH)).getBaseValue();
+                        double boggedTotalHealth = baseHealth + (double) extraHealth / 2;
+                        Objects.requireNonNull(bogged.getAttribute(Attribute.MAX_HEALTH)).setBaseValue(boggedTotalHealth);
+                        bogged.setHealth(boggedTotalHealth);
+                    }
+                    case Slime slime -> {
+                        if (typeToSpawn == EntityType.SLIME) {
+                            int slimeSize = random.nextInt(2) + 2;
+                            slime.setSize(slimeSize);
+                        }
+                    }
+                    default -> {
+                    }
+                }
+
+                spawnedEntity.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, Integer.MAX_VALUE, 1, false, false));
+                spawnedCount++; // 성공적으로 소환 시 카운트 증가
             }
-        }.runTaskTimer(this, 0L, ZOMBIE_SPAWN_INTERVAL_TICKS); // 주기적으로 좀비 스폰 작업 실행
-        makeZombiesChasePlayers(); // 좀비가 플레이어를 추적하도록 하는 작업 시작
-    }
-
-    // 특정 타입의 엔티티 (좀비/허스크)를 주어진 위치에 안전하게 소환하는 헬퍼 메서드
-    private Zombie spawnEntitySafely(Location spawnLocation, EntityType type) {
-        World world = spawnLocation.getWorld();
-        // 월드 유효성 및 소환 가능한 엔티티 타입 확인 (Zombie 또는 Husk만 허용)
-        if (world == null || (type != EntityType.ZOMBIE && type != EntityType.HUSK)) {
-            getLogger().warning(INVALID_ENTITY_TYPE_WARNING + type);
-            return null;
-        }
-
-        // spawnLocation 의 Y 좌표는 이미 안전한 지면 위로 가정 (getHighestBlockYAt + 1 사용)
-
-        try {
-            // 엔티티 소환 시도
-            return (Zombie) world.spawnEntity(spawnLocation, type);
-        } catch (Exception e) {
-            // 엔티티 소환 중 예외 발생 시 오류 로깅
-            getLogger().severe(SPAWN_ERROR_SEVERE + " " + type + " at " + spawnLocation + ": " + e.getMessage());
-            getLogger().severe("Stack Trace:");
-            return null; // 소환 실패 시 null 반환
-        }
+        }.runTaskTimer(this, 0L, ZOMBIE_SPAWN_INTERVAL_TICKS); // 주기적으로 엔티티 스폰 작업 실행
+        makeZombiesChasePlayers();
     }
 
 
@@ -403,37 +424,62 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
                 }
 
                 for (World world : Bukkit.getWorlds()) {
-                    // 모든 월드의 Zombie 타입 엔티티 (허스크 포함) 반복 처리
                     for (Zombie zombie : world.getEntitiesByClass(Zombie.class)) {
+                        // 타겟 설정 로직 (기존과 동일)
                         LivingEntity currentTarget = zombie.getTarget(); // 현재 타겟 가져오기
 
                         // 현재 타겟이 없거나 유효하지 않은 플레이어인 경우 새로운 타겟 찾기
                         if (currentTarget == null ||
                                 (currentTarget instanceof Player playerTarget && (playerTarget.getGameMode() == GameMode.SPECTATOR || playerTarget.isDead()))) {
 
-                            // 가장 가까운 플레이어 찾기 (플레이 가능한 상태의 플레이어만 고려)
+                            // 가장 가까운 플레이어 찾기 (getNearestPlayer 메서드 사용)
                             Player nearest = getNearestPlayer(zombie);
                             if (nearest != null) {
                                 zombie.setTarget(nearest); // 새로운 타겟 설정
                             }
                         }
-                        // else: 현재 타겟이 유효한 플레이어인 경우 타겟 유지 (별도 로직 없음)
+                    }
+
+                    for (Bogged bogged : world.getEntitiesByClass(Bogged.class)) {
+                        LivingEntity currentTarget = bogged.getTarget();
+                        if (currentTarget == null || (currentTarget instanceof Player playerTarget && (playerTarget.getGameMode() == GameMode.SPECTATOR || playerTarget.isDead()))) {
+                            Player nearest = getNearestPlayer(bogged);
+                            if (nearest != null) {
+                                bogged.setTarget(nearest);
+                            }
+                        }
+                    }
+
+                    // 👇 추가: 슬라임 타입 타겟 설정
+                    for (Slime slime : world.getEntitiesByClass(Slime.class)) {
+                        // 타겟 설정 로직 (좀비와 유사)
+                        LivingEntity currentTarget = slime.getTarget();
+                        if (currentTarget == null || (currentTarget instanceof Player playerTarget && (playerTarget.getGameMode() == GameMode.SPECTATOR || playerTarget.isDead()))) {
+                            Player nearest = getNearestPlayer(slime); // getNearestPlayer 메서드 사용
+                            if (nearest != null) {
+                                slime.setTarget(nearest);
+                                // 👇 디버그 로그 추가: 슬라임에게 타겟이 설정되는지 확인
+                                getLogger().info("Debug: Setting target for Slime at " + slime.getLocation().toVector() + " to player " + nearest.getName());
+                            } else {
+                                // 👇 디버그 로그 추가: 슬라임에게 타겟 설정 실패 (플레이어 없음 등)
+                                getLogger().info("Debug: Failed to find nearest player for Slime at " + slime.getLocation().toVector());
+                            }
+                        }
                     }
                 }
             }
-        }.runTaskTimer(this, 0L, ZOMBIE_CHASE_INTERVAL_TICKS); // 주기적으로 좀비 타겟 업데이트
+        }.runTaskTimer(this, 0L, ZOMBIE_CHASE_INTERVAL_TICKS); // 주기적으로 엔티티 타겟 업데이트 (이름은 그대로 둠)
     }
 
-    // 가장 가까운 플레이어 찾기 (플레이 가능한 상태의 플레이어만 고려)
-    private Player getNearestPlayer(Zombie zombie) {
+    private Player getNearestPlayer(LivingEntity entity) {
         double closestDistance = Double.MAX_VALUE;
         Player closestPlayer = null;
-        Location zombieLocation = zombie.getLocation();
+        Location entityLocation = entity.getLocation(); // 입력 엔티티의 위치 사용
 
         for (Player player : Bukkit.getOnlinePlayers()) {
             // 플레이 가능한 상태의 플레이어만 고려 (관전자, 사망자 제외)
             if (player.getGameMode() != GameMode.SPECTATOR && !player.isDead()) {
-                double distance = player.getLocation().distance(zombieLocation);
+                double distance = player.getLocation().distance(entityLocation);
                 if (distance < closestDistance) {
                     closestDistance = distance;
                     closestPlayer = player;
@@ -444,10 +490,16 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
     }
 
     // 모든 좀비 제거
-    private void removeAllZombies() {
+    private void removeGameEntities() {
         for (World world : Bukkit.getWorlds()) {
             for (Zombie zombie : world.getEntitiesByClass(Zombie.class)) {
                 zombie.remove();
+            }
+            for (Bogged bogged : world.getEntitiesByClass(Bogged.class)) {
+                bogged.remove();
+            }
+            for (Slime slime : world.getEntitiesByClass(Slime.class)) {
+                slime.remove();
             }
         }
     }

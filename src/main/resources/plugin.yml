@@ -4,9 +4,9 @@ main: org.blog.test.MyPlugin
 api-version: '1.21'
 
 commands:
-  게임:
+  게임시작:
     description: "좀비 웨이브 게임을 시작합니다."
-    usage: "/게임"
+    usage: "/게임시작"
     permission: "plugin.start"
 
   게임취소:
