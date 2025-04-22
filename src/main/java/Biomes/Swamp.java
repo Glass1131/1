@@ -21,7 +21,7 @@ public class Swamp implements Listener {
         int slimeSize = slime.getSize();
 
         int durationTicks;
-        int amplifier = 1;
+        int amplifier = 10;
 
         durationTicks = switch (slimeSize) {
             case 3 -> 20 * 10; // 큰 슬라임 (크기 3) -> 10초

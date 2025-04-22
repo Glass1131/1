@@ -198,23 +198,72 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
         }, ROUND_END_DELAY_TICKS);
     }
 
-    // 액션바 스케줄러 (갈증, 온도 상태 표시)
+    // 액션바 스케줄러 (갈증, 온도, 바이옴 상태 표시)
     private void startActionBarScheduler() {
         Bukkit.getScheduler().runTaskTimer(this, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
+                Location playerLoc = player.getLocation();
+
                 int thirstLevel = thirstSystem.getThirstLevel(player);
-                // HeatSystem 인스턴스에서 현재 온도 상태 문자열 가져오기
                 String temperature = heatSystem != null ? heatSystem.getTemperatureState(player) : "N/A";
+
+                // 현재 바이옴 정보 가져오기
+                Biome currentBiome = playerLoc.getBlock().getBiome();
+                String formattedBiome = formatBiomeName(currentBiome); // 헬퍼 메서드로 이름 형식화
+                // 👇 추가: 현재 바이옴에 따른 색상 가져오기
+                NamedTextColor biomeColor = getBiomeColor(currentBiome); // 헬퍼 메서드로 색상 결정
 
                 NamedTextColor thirstColor = getThirstColor(thirstLevel);
 
+                // 👇 수정: 액션바 메시지의 바이옴 부분에 결정된 색상 적용
                 player.sendActionBar(
                         Component.text("💧 갈증: " + thirstLevel + "%", thirstColor)
                                 .append(Component.text(" | 🌡 " + temperature, NamedTextColor.WHITE))
+                                // 바이옴 정보 추가 - 형식화된 이름과 결정된 색상 사용
+                                .append(Component.text(" | 🌳 " + formattedBiome, biomeColor)) // 바이옴 이름에 색상 적용
                 );
             }
-        }, 0L, ACTIONBAR_UPDATE_INTERVAL_TICKS); // 1초마다 실행
+        }, 0L, ACTIONBAR_UPDATE_INTERVAL_TICKS); // 주기적으로 실행
     }
+
+    // Biome Enum 이름을 보기 좋게 형식화하는 헬퍼 메서드
+    private String formatBiomeName(Biome biome) {
+        if (biome == null) return "Unknown Biome";
+        String keyString = biome.getKey().asString();
+        // 네임스페이스 제거 (예: "minecraft:deep_dark" -> "deep_dark")
+        String name = keyString.contains(":") ? keyString.split(":")[1] : keyString;
+        name = name.toLowerCase().replace("_", " "); // 소문자로 바꾸고 밑줄을 공백으로
+
+        StringBuilder formattedName = new StringBuilder();
+        boolean capitalizeNext = true;
+
+        for (char c : name.toCharArray()) {
+            if (Character.isWhitespace(c)) {
+                capitalizeNext = true;
+                formattedName.append(c);
+            } else if (capitalizeNext) {
+                formattedName.append(Character.toUpperCase(c));
+                capitalizeNext = false;
+            } else {
+                formattedName.append(c);
+            }
+        }
+        return formattedName.toString();
+    }
+
+    private NamedTextColor getBiomeColor(Biome biome) {
+        if (biome == null) {
+            return NamedTextColor.GRAY;
+        } else if (biome == Biome.DEEP_DARK) {
+            return NamedTextColor.DARK_GRAY;
+        } else if (biome == Biome.DESERT) {
+            return NamedTextColor.YELLOW;
+        } else if (biome == Biome.SWAMP) {
+            return NamedTextColor.DARK_GREEN;
+        } else {
+            return NamedTextColor.WHITE; // 기본 색상
+        }
+    } //switch 문으로 바꾸면 ㅈㄹ남 ㅅㅂ
 
     private void restartThirstAndHeatSystems() {
         // 갈증 시스템 초기화 및 재시작
@@ -268,7 +317,7 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
         new BukkitRunnable() {
             @Override
             public void run() {
-                // 👇 수정: 살아있는 좀비, 보그드, 슬라임의 총 개수 세기 (다양한 엔티티 타입 포함)
+                //좀비, 보그드, 슬라임의 총 개수 세기 (다양한 엔티티 타입 포함)
                 long totalGameEntities = Bukkit.getWorlds().stream()
                         .flatMap(world -> world.getEntitiesByClass(LivingEntity.class).stream()) // 모든 LivingEntity 가져오기
                         .filter(entity -> !entity.isDead()) // 사망하지 않은 엔티티만 필터링
@@ -342,14 +391,18 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
                     if (desertChance < 0.85) typeToSpawn = EntityType.HUSK;
                     else typeToSpawn = EntityType.ZOMBIE_VILLAGER;
                 } else if (spawnBiome == Biome.SWAMP) {
-                    double swampChance = random.nextDouble();
-                    if (swampChance < 0.25) {
+                    //늪지대 바이옴: 마녀(0.01%), 좀비(35%), 좀비 주민(35%), 보그드(20%), 슬라임(10%)
+                    double swampChance = random.nextDouble(); // 0.0부터 1.0까지의 랜덤 값
+
+                    if (swampChance < 0.0001) { //0.01% 확률로 마녀 소환 (0.01 / 100 = 0.0001)
+                        typeToSpawn = EntityType.WITCH;
+                    } else if (swampChance < 0.0001 + 0.35) { // 0.0001 이상 0.3501 미만 (35%)
                         typeToSpawn = EntityType.ZOMBIE;
-                    } else if (swampChance < 0.60) {
+                    } else if (swampChance < 0.0001 + 0.35 + 0.35) { // 0.3501 이상 0.7001 미만 (35%)
                         typeToSpawn = EntityType.ZOMBIE_VILLAGER;
-                    } else if (swampChance < 0.80) {
+                    } else if (swampChance < 0.0001 + 0.35 + 0.35 + 0.20) { // 0.7001 이상 0.9001 미만 (20%)
                         typeToSpawn = EntityType.BOGGED;
-                    } else {
+                    } else { // 0.9001 이상 1.0 미만 (10%)
                         typeToSpawn = EntityType.SLIME;
                     }
                 }
@@ -425,14 +478,9 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
 
                 for (World world : Bukkit.getWorlds()) {
                     for (Zombie zombie : world.getEntitiesByClass(Zombie.class)) {
-                        // 타겟 설정 로직 (기존과 동일)
-                        LivingEntity currentTarget = zombie.getTarget(); // 현재 타겟 가져오기
-
-                        // 현재 타겟이 없거나 유효하지 않은 플레이어인 경우 새로운 타겟 찾기
+                        LivingEntity currentTarget = zombie.getTarget();
                         if (currentTarget == null ||
                                 (currentTarget instanceof Player playerTarget && (playerTarget.getGameMode() == GameMode.SPECTATOR || playerTarget.isDead()))) {
-
-                            // 가장 가까운 플레이어 찾기 (getNearestPlayer 메서드 사용)
                             Player nearest = getNearestPlayer(zombie);
                             if (nearest != null) {
                                 zombie.setTarget(nearest); // 새로운 타겟 설정
@@ -450,19 +498,24 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
                         }
                     }
 
-                    // 👇 추가: 슬라임 타입 타겟 설정
+                    // 슬라임 타입 타겟 설정
                     for (Slime slime : world.getEntitiesByClass(Slime.class)) {
-                        // 타겟 설정 로직 (좀비와 유사)
                         LivingEntity currentTarget = slime.getTarget();
                         if (currentTarget == null || (currentTarget instanceof Player playerTarget && (playerTarget.getGameMode() == GameMode.SPECTATOR || playerTarget.isDead()))) {
-                            Player nearest = getNearestPlayer(slime); // getNearestPlayer 메서드 사용
+                            Player nearest = getNearestPlayer(slime);
                             if (nearest != null) {
                                 slime.setTarget(nearest);
-                                // 👇 디버그 로그 추가: 슬라임에게 타겟이 설정되는지 확인
-                                getLogger().info("Debug: Setting target for Slime at " + slime.getLocation().toVector() + " to player " + nearest.getName());
-                            } else {
-                                // 👇 디버그 로그 추가: 슬라임에게 타겟 설정 실패 (플레이어 없음 등)
-                                getLogger().info("Debug: Failed to find nearest player for Slime at " + slime.getLocation().toVector());
+                            }
+                        }
+                    }
+
+                    for (Witch witch : world.getEntitiesByClass(Witch.class)) {
+                        // 타겟 설정 로직 (좀비와 유사)
+                        LivingEntity currentTarget = witch.getTarget();
+                        if (currentTarget == null || (currentTarget instanceof Player playerTarget && (playerTarget.getGameMode() == GameMode.SPECTATOR || playerTarget.isDead()))) {
+                            Player nearest = getNearestPlayer(witch); // LivingEntity (Witch) 전달
+                            if (nearest != null) {
+                                witch.setTarget(nearest);
                             }
                         }
                     }
@@ -489,7 +542,7 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
         return closestPlayer; // 가장 가까운 플레이어 반환 (없으면 null)
     }
 
-    // 모든 좀비 제거
+    // 엔티티 제거
     private void removeGameEntities() {
         for (World world : Bukkit.getWorlds()) {
             for (Zombie zombie : world.getEntitiesByClass(Zombie.class)) {
@@ -500,6 +553,9 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
             }
             for (Slime slime : world.getEntitiesByClass(Slime.class)) {
                 slime.remove();
+            }
+            for (Witch witch : world.getEntitiesByClass(Witch.class)) {
+                witch.remove();
             }
         }
     }
