@@ -42,7 +42,7 @@ public class HeatSystem {
     // 2: 정상     (온도 0)
     // 3: 더움     (온도 1)
     // 4: 매우 더움 (온도 >= 2)
-    private final String[] temperatureStates = {"§9매우 추움", "§b추움", "§a정상", "§6더움", "§c매우 더움"};
+    private final String[] temperatureStates = {"매우 추움", "추움", "정상", "더움", "매우 더움"};
 
 
     public HeatSystem(JavaPlugin plugin) {
@@ -178,11 +178,11 @@ public class HeatSystem {
 
         // 온도가 TEMPERATURE_VERY_HOT_THRESHOLD (2)보다 큰 경우 "매우 더움" 뒤에 "!" 추가
         if (temp > TEMPERATURE_VERY_HOT_THRESHOLD) {
-            return "§c매우 더움" + "!".repeat(temp - TEMPERATURE_VERY_HOT_THRESHOLD); // 3 이상일 경우 '!' 추가
+            return "매우 더움" + "!".repeat(temp - TEMPERATURE_VERY_HOT_THRESHOLD); // 3 이상일 경우 '!' 추가
         }
         // 온도가 TEMPERATURE_VERY_COLD_THRESHOLD (-2) 이하인 경우 "매우 추움" 뒤에 "!" 추가
         else if (temp < TEMPERATURE_VERY_COLD_THRESHOLD) {
-            return "§9매우 추움" + "!".repeat(TEMPERATURE_VERY_COLD_THRESHOLD - temp); // -3 이하일 경우 '!' 추가
+            return "매우 추움" + "!".repeat(TEMPERATURE_VERY_COLD_THRESHOLD - temp); // -3 이하일 경우 '!' 추가
         }
         else {
             // 이 else 블록에 들어오는 temp 값의 범위는 -2 <= temp <= 2 입니다.

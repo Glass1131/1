@@ -127,7 +127,7 @@ public class BiomeNotifier extends BukkitRunnable {
         }
     }
 
-    // 👇 바이옴 진입/이탈 감지 및 메시지/액션/쿨다운 처리를 위한 헬퍼 메서드
+    // 바이옴 진입/이탈 감지 및 메시지/액션/쿨다운 처리를 위한 헬퍼 메서드
     private void handleBiomeChange(Player player, Biome currentPlayerBiome, Biome targetBiome, String biomeStateKey, long currentTime,
                                    Runnable entryMessage, Runnable entryAction, Runnable exitMessage, Runnable exitAction) {
 
@@ -152,7 +152,7 @@ public class BiomeNotifier extends BukkitRunnable {
     }
 
 
-    // 👇 메시지 발송 및 쿨다운 처리를 위한 헬퍼 메서드
+    //메시지 발송 및 쿨다운 처리를 위한 헬퍼 메서드
     private void processMessageAndCooldown(Player player, String eventType, long currentTime, Runnable messageSender) {
         if (!isSuppressed(player, eventType, currentTime)) {
             TriggerInfo info = getTriggerInfo(player, eventType);

@@ -25,7 +25,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
 
 /**
  * Since 2025 ~
- * 제작자: Glass1131, Gemini, GPT, 추후 추가될 사람: Barity_
+ * 제작자: Glass1131, Gemini, GPT
  * 목적: ???
  */
 
@@ -35,7 +35,7 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
     private static final long ROUND_END_DELAY_TICKS = 40L;
     private static final long ZOMBIE_SPAWN_INTERVAL_TICKS = 10L;
     private static final long ZOMBIE_COUNT_UPDATE_INTERVAL_TICKS = 20L;
-    private static final long ZOMBIE_CHASE_INTERVAL_TICKS = 20L;
+    private static final long ZOMBIE_CHASE_INTERVAL_TICKS = 200L;
     private static final long BIOME_CHECK_INTERVAL_TICKS = 5L;
     private static final long ACTIONBAR_UPDATE_INTERVAL_TICKS = 20L;
     private static final int ZOMBIE_HEALTH_INCREASE_PER_10_ROUNDS = 3;
@@ -69,6 +69,13 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
     private static final NamedTextColor THIRST_COLOR_50_PLUS = NamedTextColor.GOLD;
     private static final NamedTextColor THIRST_COLOR_20_PLUS = NamedTextColor.YELLOW;
     private static final NamedTextColor THIRST_COLOR_BELOW_20 = NamedTextColor.GREEN;
+
+    // 온도 상태별 색상 상수 (이거 없어도 색깔 적용됐는데 찾아줘봐 없으면 말고)
+    private static final NamedTextColor VERY_COLD_COLOR = NamedTextColor.BLUE;
+    private static final NamedTextColor COLD_COLOR = NamedTextColor.AQUA;
+    private static final NamedTextColor NORMAL_TEMPERATURE_COLOR = NamedTextColor.GRAY;
+    private static final NamedTextColor HOT_COLOR = NamedTextColor.GOLD;
+    private static final NamedTextColor VERY_HOT_COLOR = NamedTextColor.RED;
 
     @Override
     public void onEnable() {
@@ -114,10 +121,6 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
         startActionBarScheduler();
     }
 
-    // onCommand 메서드는 CustomCommand가 처리하므로 MyPlugin 에서 제거되었습니다.
-    // onTabComplete 메서드는 CustomCommand가 처리하므로 MyPlugin 에서 제거되었습니다.
-
-
     public NamedTextColor getThirstColor(int thirstLevel) {
         if (thirstLevel == 100) {
             return THIRST_COLOR_100; // 100%는 검은색
@@ -132,6 +135,24 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
         } else {
             return THIRST_COLOR_BELOW_20; // 20% 미만은 초록색
         }
+    }
+
+    // 온도 상태 문자열에 따른 색상 반환
+    private NamedTextColor getTemperatureColorFromStateString(String temperatureState) {
+        if (temperatureState == null) {
+            return NamedTextColor.GRAY; // 기본 색상
+        }
+        // '!'를 제거하고 상태 문자열만 비교
+        String cleanState = temperatureState.replace("!", "");
+
+        return switch (cleanState) {
+            case "매우 추움" -> VERY_COLD_COLOR;
+            case "추움" -> COLD_COLOR;
+            case "정상" -> NORMAL_TEMPERATURE_COLOR;
+            case "더움" -> HOT_COLOR;
+            case "매우 더움" -> VERY_HOT_COLOR;
+            default -> NamedTextColor.GRAY; // 기본 색상
+        };
     }
 
     @Override
@@ -207,23 +228,27 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
                 int thirstLevel = thirstSystem.getThirstLevel(player);
                 String temperature = heatSystem != null ? heatSystem.getTemperatureState(player) : "N/A";
 
+                // 온도 상태 문자열에 따른 색상 가져오기
+                NamedTextColor temperatureColor = getTemperatureColorFromStateString(temperature);
+
                 // 현재 바이옴 정보 가져오기
                 Biome currentBiome = playerLoc.getBlock().getBiome();
-                String formattedBiome = formatBiomeName(currentBiome); // 헬퍼 메서드로 이름 형식화
-                // 👇 추가: 현재 바이옴에 따른 색상 가져오기
-                NamedTextColor biomeColor = getBiomeColor(currentBiome); // 헬퍼 메서드로 색상 결정
+                String formattedBiome = formatBiomeName(currentBiome);
+
+                NamedTextColor biomeColor = getBiomeColor(currentBiome);
 
                 NamedTextColor thirstColor = getThirstColor(thirstLevel);
 
-                // 👇 수정: 액션바 메시지의 바이옴 부분에 결정된 색상 적용
+                // 액션바에 표시 - 각 요소를 별도의 Component로 분리하고 색상 적용
                 player.sendActionBar(
-                        Component.text("💧 갈증: " + thirstLevel + "%", thirstColor)
-                                .append(Component.text(" | 🌡 " + temperature, NamedTextColor.WHITE))
-                                // 바이옴 정보 추가 - 형식화된 이름과 결정된 색상 사용
-                                .append(Component.text(" | 🌳 " + formattedBiome, biomeColor)) // 바이옴 이름에 색상 적용
+                        Component.text("💧 갈증: " + thirstLevel + "%", thirstColor) // 갈증 정보 (색상: 갈증 레벨에 따라 다름)
+                                .append(Component.text(" | ", NamedTextColor.WHITE)) // 구분자 '|' (색상: 하얀색)
+                                .append(Component.text("🌡 " + temperature, temperatureColor)) // 온도 정보 (색상: 온도 상태에 따라 다름)
+                                .append(Component.text(" | ", NamedTextColor.WHITE)) // 구분자 '|' (색상: 하얀색)
+                                .append(Component.text("🌳 " + formattedBiome, biomeColor)) // 바이옴 정보 (색상: 바이옴에 따라 다름)
                 );
             }
-        }, 0L, ACTIONBAR_UPDATE_INTERVAL_TICKS); // 주기적으로 실행
+        }, 0L, ACTIONBAR_UPDATE_INTERVAL_TICKS);
     }
 
     // Biome Enum 이름을 보기 좋게 형식화하는 헬퍼 메서드
@@ -260,8 +285,10 @@ public class MyPlugin extends JavaPlugin implements Listener { // TabCompleter �
             return NamedTextColor.YELLOW;
         } else if (biome == Biome.SWAMP) {
             return NamedTextColor.DARK_GREEN;
+        } else if (biome == Biome.PLAINS){
+            return  NamedTextColor.GREEN;
         } else {
-            return NamedTextColor.WHITE; // 기본 색상
+            return NamedTextColor.WHITE;
         }
     } //switch 문으로 바꾸면 ㅈㄹ남 ㅅㅂ
 

@@ -1,0 +1,54 @@
+# Zombie Survival Plugin Configuration
+
+# 라운드 설정 (configPreparationTimeSeconds, configRoundEndDelayTicks 에 해당)
+round:
+  preparation-time-seconds: 30 # 각 라운드 시작 전 준비 시간 (초). 기본값: 30
+  end-delay-ticks: 40 # 라운드 종료 메시지 표시 후 다음 라운드 준비까지의 딜레이 (틱, 20틱=1초). 기본값: 40
+
+# 몹 스폰 설정 (configZombiesPerRound, configSpawnIntervalTicks, configHealthIncrease...)
+spawn:
+  zombies-per-round: 20 # 라운드당 기본 소환될 좀비/몹 수. 기본값: 20
+  interval-ticks: 10 # 몹 하나씩 스폰되는 간격 (틱). 기본값: 10 (0.5초)
+
+  # 몹 체력 증가 설정 (configHealthIncreasePer10Rounds, configHealthIncreaseEveryXRounds)
+  health-increase:
+    per-10-rounds: 3 # 10 라운드마다 증가할 추가 체력 양. 기본값: 3
+    every-x-rounds: 10 # 추가 체력이 증가하는 라운드 간격. 기본값: 10 (10, 20, 30 라운드 등)
+
+# 스케줄러 간격 설정 (configZombieCountUpdateIntervalTicks, configZombieChaseIntervalTicks, ...)
+intervals:
+  zombie-count-update-ticks: 20 # 남은 몹 수 스코어보드 업데이트 간격 (틱). 기본값: 20 (1초)
+  zombie-chase-ticks: 20 # 몹들이 플레이어 추적 타겟을 업데이트하는 간격 (틱). 기본값: 20 (1초)
+  biome-check-ticks: 5 # 플레이어 바이옴 체크 스케줄러 간격 (틱). 기본값: 5 (0.25초)
+  actionbar-update-ticks: 20 # 액션바 정보 업데이트 스케줄러 간격 (틱). 기본값: 20 (1초)
+
+# 바이옴별 설정 (스폰 좌표 및 스폰 확률)
+biomes:
+  # 기본 바이옴 설정 (Deep Dark, Desert, Swamp 외)
+  default:
+    spawn-coords: [-258, -341, 80, 14] # 기본 스폰 좌표 [minX, maxX, minZ, maxZ]
+    # 기본 바이옴은 Zombie만 스폰되도록 현재 코드에 설정되어 있으므로 확률 설정은 필요 없습니다.
+
+  # Deep Dark 바이옴 설정
+  deep_dark:
+    spawn-coords: [-225, -258, -119, -153] # Deep Dark 스폰 좌표
+    # Deep Dark는 좀비만 스폰되도록 현재 코드에 설정되어 있으므로 확률 설정은 필요 없습니다.
+
+  # 사막 (Desert) 바이옴 설정
+  desert:
+    spawn-coords: [-214, -180, -153, -119] # 사막 스폰 좌표
+    # 사막 스폰 확률 (총 합 1.0)
+    spawn-probabilities:
+      HUSK: 0.85 # 허스크 85%
+      ZOMBIE_VILLAGER: 0.15 # 좀비 주민 15%
+
+  # 늪지대 (Swamp) 바이옴 설정
+  swamp:
+    spawn-coords: [-264, -299, -153, -119] # 늪지대 스폰 좌표 (사용자 마지막 제공 좌표)
+    # 늪지대 스폰 확률 (총 합 1.0이 되도록 조정)
+    spawn-probabilities:
+      WITCH: 0.0001 # 마녀 0.01%
+      ZOMBIE: 0.349965 # 좀비 35% (전체 99.99% 중)
+      ZOMBIE_VILLAGER: 0.349965 # 좀비 주민 35% (전체 99.99% 중)
+      BOGGED: 0.19998 # 보그드 20% (전체 99.99% 중)
+      SLIME: 0.09999 # 슬라임 10% (전체 99.99% 중)
