@@ -1,24 +1,24 @@
 # Zombie Survival Plugin Configuration
 
-# 라운드 설정 (configPreparationTimeSeconds, configRoundEndDelayTicks 에 해당)
+# 라운드 설정
 round:
   preparation-time-seconds: 30 # 각 라운드 시작 전 준비 시간 (초). 기본값: 30
   end-delay-ticks: 40 # 라운드 종료 메시지 표시 후 다음 라운드 준비까지의 딜레이 (틱, 20틱=1초). 기본값: 40
 
-# 몹 스폰 설정 (configZombiesPerRound, configSpawnIntervalTicks, configHealthIncrease...)
+# 몹 스폰 설정
 spawn:
   zombies-per-round: 20 # 라운드당 기본 소환될 좀비/몹 수. 기본값: 20
   interval-ticks: 10 # 몹 하나씩 스폰되는 간격 (틱). 기본값: 10 (0.5초)
 
-  # 몹 체력 증가 설정 (configHealthIncreasePer10Rounds, configHealthIncreaseEveryXRounds)
+  # 몹 체력 증가 설정
   health-increase:
     per-10-rounds: 3 # 10 라운드마다 증가할 추가 체력 양. 기본값: 3
     every-x-rounds: 10 # 추가 체력이 증가하는 라운드 간격. 기본값: 10 (10, 20, 30 라운드 등)
 
-# 스케줄러 간격 설정 (configZombieCountUpdateIntervalTicks, configZombieChaseIntervalTicks, ...)
+# 스케줄러 간격 설정
 intervals:
   zombie-count-update-ticks: 20 # 남은 몹 수 스코어보드 업데이트 간격 (틱). 기본값: 20 (1초)
-  zombie-chase-ticks: 20 # 몹들이 플레이어 추적 타겟을 업데이트하는 간격 (틱). 기본값: 20 (1초)
+  zombie-chase-ticks: 200 # 몹들이 플레이어 추적 타겟을 업데이트하는 간격 (틱). 기본값: 200 (10초) - 사용자 기존 값 반영
   biome-check-ticks: 5 # 플레이어 바이옴 체크 스케줄러 간격 (틱). 기본값: 5 (0.25초)
   actionbar-update-ticks: 20 # 액션바 정보 업데이트 스케줄러 간격 (틱). 기본값: 20 (1초)
 

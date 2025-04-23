@@ -49,7 +49,7 @@ public class Deep_dark implements Listener {
                         if (player != null) {
                             int amount = droppedItem.getItemStack().getAmount();
                             player.getInventory().addItem(new ItemStack(Material.SALMON, amount));
-                            player.sendMessage("§aSculk 이 흡수되었고, 당신은 연어 " + amount + "개를 받았습니다!");
+                            player.sendMessage("Sculk 이 흡수되었고, 당신은 연어 " + amount + "개를 받았습니다!");
                         }
 
                         // 아이템 삭제
@@ -59,7 +59,7 @@ public class Deep_dark implements Listener {
                         Player player = getDroppingPlayer(droppedItem);
                         if (player != null) {
                             player.getInventory().addItem(droppedItem.getItemStack());
-                            player.sendMessage("§c스컬크 아이템이 아니어서 아이템이 반환되었습니다.");
+                            player.sendMessage("스컬크 아이템이 아니어서 아이템이 반환되었습니다.");
                         }
 
                         // 아이템 삭제 (반환되었기 때문에 실제로는 삭제하지 않지만, 중복 방지를 위해)

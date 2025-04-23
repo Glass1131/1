@@ -1,4 +1,3 @@
-// BiomeNotifier.java - Code without the playerBiomeToStateKey method
 
 package org.blog.test;
 
