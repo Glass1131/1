@@ -1,9 +1,6 @@
 package System;
 
-import org.bukkit.Bukkit;
-import org.bukkit.GameMode;
-import org.bukkit.Location;
-import org.bukkit.Material;
+import org.bukkit.*;
 import org.bukkit.block.Biome;
 import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
@@ -94,13 +91,17 @@ public class HeatSystem {
     private int calculateTemperatureChange(Location loc) {
         // 발견된 온도 변화를 일으키는 블록 타입을 저장할 Set
         Set<Material> foundTemperatureMaterials = new HashSet<>();
+        World world = loc.getWorld(); // 월드를 한 번만 가져옵니다.
+        int baseX = loc.getBlockX(); // 플레이어의 정수 좌표를 미리 계산합니다.
+        int baseY = loc.getBlockY();
+        int baseZ = loc.getBlockZ();
 
         // 주변 NEARBY_BLOCK_RADIUS 범위 내의 블록 타입 확인 및 Set 에 추가
         for (int x = -NEARBY_BLOCK_RADIUS; x <= NEARBY_BLOCK_RADIUS; x++) {
             for (int y = -NEARBY_BLOCK_RADIUS; y <= NEARBY_BLOCK_RADIUS; y++) {
                 for (int z = -NEARBY_BLOCK_RADIUS; z <= NEARBY_BLOCK_RADIUS; z++) {
-                    // 플레이어 위치 기준 상대적 위치의 블록 타입 확인
-                    Material type = loc.clone().add(x, y, z).getBlock().getType();
+                    // Location 객체 생성 대신 world.getBlockAt 사용
+                    Material type = world.getBlockAt(baseX + x, baseY + y, baseZ + z).getType();
                     // 온도 변화를 일으키는 블록 타입인지 확인하고 Set 에 추가
                     if (type == Material.ICE ||
                             type == Material.LAVA ||
@@ -112,7 +113,6 @@ public class HeatSystem {
                 }
             }
         }
-
         return getTempChange(foundTemperatureMaterials);
     }
 
