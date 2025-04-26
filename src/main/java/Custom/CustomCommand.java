@@ -1,5 +1,6 @@
 package Custom;
 
+import org.blog.test.GameManager;
 import org.blog.test.MyPlugin;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
@@ -9,6 +10,8 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,15 +22,18 @@ import java.util.Map;
 
 public class CustomCommand implements CommandExecutor, TabCompleter {
 
-    private final MyPlugin plugin; // MyPlugin 인스턴스를 저장할 필드
-    private final Map<String, ItemStack> itemMap = new HashMap<>(); // 아이템 맵 필드
-    // round 명령어의 서브커맨드 목록 상수화
+    private final MyPlugin plugin;
+    private final GameManager gameManager;
+    private final Map<String, ItemStack> itemMap = new HashMap<>();
     private static final List<String> ROUND_SUBCOMMANDS = Arrays.asList("add", "remove", "reset", "set");
 
-    public CustomCommand(MyPlugin plugin) {
-        this.plugin = plugin; // 전달받은 MyPlugin 인스턴스 저장
+    public CustomCommand(MyPlugin plugin, GameManager gameManager) {
+        this.plugin = plugin;
+        this.gameManager = gameManager;
+        initializeItemMap();
+    }
 
-        // ✅ 명령어와 아이템을 연결
+    private void initializeItemMap() {
         itemMap.put("zombie_power", CustomItem.ZOMBIE_POWER);
         itemMap.put("d_sword", CustomItem.D_SWORD);
         itemMap.put("d_helmet", CustomItem.D_HELMET);
@@ -44,223 +50,257 @@ public class CustomCommand implements CommandExecutor, TabCompleter {
         itemMap.put("calibrated_sculk_sensor", CustomItem.CALIBRATED_SCULK_SENSOR);
     }
 
+
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String @NotNull [] args) {
-        // 플레이어만 사용할 수 있는 명령어인지 확인 (필요하다면 명령어별로 분기)
-        // 현재는 모든 명령어가 플레이어 전용이라고 가정하고 이 체크를 유지합니다.
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§c[!] 플레이어만 사용할 수 있는 명령어입니다.");
-            return true;
+            sender.sendMessage(Component.text("[!] 플레이어만 사용할 수 있는 명령어입니다.", NamedTextColor.RED));
+            return true; // 콘솔 등에서 실행 시 여전히 true 반환 (처리 완료)
         }
 
-        // 명령어 이름에 따라 처리 로직 분기
-        if (command.getName().equalsIgnoreCase("get-item")) {
-            // /get-item all 입력 시 모든 아이템 지급
-            if (args.length > 0 && args[0].equalsIgnoreCase("all")) {
-                for (ItemStack item : itemMap.values()) {
-                    item.setAmount(1); // 모든 아이템의 수량을 1로 설정
-                    player.getInventory().addItem(item);
-                }
-                player.sendMessage("§a[!] 모든 커스텀 아이템을 지급받았습니다!");
-                return true;
+        String commandName = command.getName().toLowerCase();
+
+        // 각 핸들러 메서드가 이제 false를 반환할 수 있음
+        return switch (commandName) {
+            case "get-item" -> handleGetItemCommand(player, args);
+            case "게임시작" -> handleStartGameCommand(player);
+            case "게임취소" -> handleStopGameCommand(player);
+            case "round" -> handleRoundCommand(player, args);
+            default -> false; // 이 플러그인이 처리하지 않는 명령어
+        };
+    }
+
+    /**
+     * /get-item 명령어 처리 로직
+     * @param player 명령어 사용자
+     * @param args 명령어 인자
+     * @return 명령어 처리 성공 시 true, 실패 또는 잘못된 사용 시 false
+     */
+    private boolean handleGetItemCommand(Player player, String[] args) {
+        // /get-item all
+        if (args.length > 0 && args[0].equalsIgnoreCase("all")) {
+            if (!player.hasPermission("customize.getitem.all")) {
+                // 권한 없음 메시지 대신 false 반환 (Bukkit 기본 메시지 표시 유도)
+                // player.sendMessage(Component.text("[!] 이 명령어를 사용할 권한이 없습니다.", NamedTextColor.RED));
+                return false; // 수정: 권한 없을 시 false 반환
             }
+            for (ItemStack item : itemMap.values()) {
+                if (item != null) {
+                    ItemStack newItem = item.clone();
+                    newItem.setAmount(1);
+                    player.getInventory().addItem(newItem);
+                }
+            }
+            player.sendMessage(Component.text("[!] 모든 커스텀 아이템을 지급받았습니다!", NamedTextColor.GREEN));
+            return true; // 성공 시 true
+        }
 
-            // /get-item <아이템 이름> <수량> 입력 시
+        // /get-item <아이템이름> [수량]
+        if (args.length >= 1) {
+            if (!player.hasPermission("customize.getitem.single")) {
+                // 권한 없음 메시지 대신 false 반환
+                // player.sendMessage(Component.text("[!] 이 명령어를 사용할 권한이 없습니다.", NamedTextColor.RED));
+                return false; // 수정: 권한 없을 시 false 반환
+            }
+            String itemName = args[0].toLowerCase();
+            int quantity = 1;
+
             if (args.length == 2) {
-                String itemName = args[0].toLowerCase();
-                int quantity;
-
                 try {
                     quantity = Integer.parseInt(args[1]);
                     if (quantity <= 0) {
-                        player.sendMessage("§c[!] 수량은 1 이상이어야 합니다.");
-                        return true;
+                        // 잘못된 수량 메시지 대신 false 반환 (plugin.yml 사용법 메시지 유도)
+                        // player.sendMessage(Component.text("[!] 수량은 1 이상이어야 합니다.", NamedTextColor.RED));
+                        return false; // 수정: 잘못된 사용 시 false 반환
                     }
                 } catch (NumberFormatException e) {
-                    player.sendMessage("§c[!] 유효하지 않은 수량입니다. 숫자를 입력해주세요.");
-                    return true;
+                    // 잘못된 수량 메시지 대신 false 반환
+                    // player.sendMessage(Component.text("[!] 유효하지 않은 수량입니다. 숫자를 입력해주세요.", NamedTextColor.RED));
+                    return false; // 수정: 잘못된 사용 시 false 반환
                 }
-
-                ItemStack item = itemMap.get(itemName);
-
-                if (item == null) {
-                    player.sendMessage("§c[!] 존재하지 않는 아이템입니다! 사용 가능한 목록: " + String.join(", ", itemMap.keySet()));
-                    return true;
-                }
-
-                // 아이템을 수량만큼 지급
-                item.setAmount(quantity);
-                player.getInventory().addItem(item);
-                player.sendMessage("§a[!] " + itemName + " " + quantity + "개(을)를 지급받았습니다!");
-                return true;
             }
 
-            // /get-item <아이템 이름> 입력 시
-            if (args.length == 1) {
-                String itemName = args[0].toLowerCase();
-                ItemStack item = itemMap.get(itemName);
+            ItemStack item = itemMap.get(itemName);
 
-                if (item == null) {
-                    player.sendMessage("§c[!] 존재하지 않는 아이템입니다! 사용 가능한 목록: " + String.join(", ", itemMap.keySet()));
-                    return true;
-                }
-
-                // 기본 수량 1로 아이템 지급
-                item.setAmount(1);
-                player.getInventory().addItem(item);
-                player.sendMessage("§a[!] " + itemName + " 1개(을)를 지급받았습니다!");
-                return true;
+            if (item == null) {
+                // 아이템 없음 메시지 대신 false 반환
+                // player.sendMessage(Component.text("[!] 존재하지 않는 아이템입니다! ...", NamedTextColor.RED));
+                return false; // 수정: 잘못된 사용 시 false 반환
             }
 
-            player.sendMessage("§b 사용법: /get-item <아이템이름> <수량> | /get-item all");
-            return true;
-
-            
+            ItemStack newItem = item.clone();
+            newItem.setAmount(quantity);
+            player.getInventory().addItem(newItem);
+            player.sendMessage(Component.text("[!] ", NamedTextColor.GREEN)
+                    .append(Component.text(itemName, NamedTextColor.AQUA))
+                    .append(Component.text(" " + quantity + "개(을)를 지급받았습니다!", NamedTextColor.GREEN)));
+            return true; // 성공 시 true
         }
 
-        // 게임 시작 명령어
-        if (command.getName().equalsIgnoreCase("게임시작")) {
-            // Player check already done at the top
-            if (plugin.gameInProgress) {
-                player.sendMessage("§c" + MyPlugin.GAME_ALREADY_IN_PROGRESS);
-                return true;
-            }
-            plugin.startGame();
+        // 인자가 부족한 경우 등 잘못된 사용법 -> false 반환 (plugin.yml 사용법 메시지 유도)
+        // player.sendMessage(Component.text("사용법: /get-item <아이템이름> [수량] | /get-item all", NamedTextColor.YELLOW));
+        return false; // 수정: 잘못된 사용 시 false 반환
+    }
+
+    /**
+     * /게임시작 명령어 처리 로직
+     * @param player 명령어 사용자
+     * @return 명령어 처리 성공 시 true, 실패 시 false
+     */
+    private boolean handleStartGameCommand(Player player) {
+        if (!player.hasPermission("plugin.start")) {
+            // 권한 없음 메시지 대신 false 반환
+            // player.sendMessage(Component.text("[!] 게임을 시작할 권한이 없습니다.", NamedTextColor.RED));
+            return false; // 수정: 권한 없을 시 false 반환
+        }
+        // 성공 시 true
+        if (gameManager.isGameInProgress()) {
+            player.sendMessage(Component.text(GameManager.GAME_ALREADY_IN_PROGRESS, NamedTextColor.RED));
+            // 이미 진행 중인 경우도 처리했으므로 true 반환 (명령어 자체는 유효)
+        } else {
+            gameManager.startGame();
+            // 성공 메시지는 GameManager 내부 또는 여기서 전송 가능
+        }
+        return true;
+    }
+
+    /**
+     * /게임취소 명령어 처리 로직
+     * @param player 명령어 사용자
+     * @return 명령어 처리 성공 시 true, 실패 시 false
+     */
+    private boolean handleStopGameCommand(Player player) {
+        if (!player.hasPermission("plugin.stop")) {
+            // 권한 없음 메시지 대신 false 반환
+            // player.sendMessage(Component.text("[!] 게임을 중지할 권한이 없습니다.", NamedTextColor.RED));
+            return false; // 수정: 권한 없을 시 false 반환
+        }
+        // 성공 시 true
+        if (!gameManager.isGameInProgress()) {
+            player.sendMessage(Component.text(GameManager.NO_GAME_IN_PROGRESS, NamedTextColor.RED));
+            // 게임이 진행 중이지 않은 경우도 처리했으므로 true 반환
+        } else {
+            gameManager.stopGame();
+            Bukkit.broadcast(Component.text(MyPlugin.GAME_FORCED_STOPPED, NamedTextColor.RED));
+        }
+        return true;
+    }
+
+    /**
+     * /round 명령어 처리 로직
+     * @param player 명령어 사용자
+     * @param args 명령어 인자
+     * @return 명령어 처리 성공 시 true, 실패 또는 잘못된 사용 시 false
+     */
+    private boolean handleRoundCommand(Player player, String[] args) {
+        if (!player.hasPermission("plugin.round")) {
+            // 권한 없음 메시지 대신 false 반환 (Bukkit 기본 메시지 또는 plugin.yml 메시지 유도)
+            // player.sendMessage(Component.text("관리자 권한이 없어 실행되지 않습니다.", NamedTextColor.RED));
+            return false; // 수정: 권한 없을 시 false 반환
+        }
+
+        if (!gameManager.isGameInProgress()) {
+            player.sendMessage(Component.text("이 명령어는 게임 진행 중에만 사용할 수 있습니다.", NamedTextColor.RED));
+            // 게임 진행 중 아닐 때도 처리했으므로 true 반환
             return true;
         }
 
-        // 게임 취소 명령어
-        if (command.getName().equalsIgnoreCase("게임취소")) {
-            if (!plugin.gameInProgress) {
-                player.sendMessage("§c" + MyPlugin.NO_GAME_IN_PROGRESS);
-                return true;
-            }
-            plugin.stopGame(); // MyPlugin 인스턴스 통해 메서드 호출
-            return true;
+        if (args.length < 1) {
+            // 사용법 오류 시 false 반환 (plugin.yml 사용법 메시지 유도)
+            // player.sendMessage(Component.text("사용법: /round [add|remove|reset|set] <값>", NamedTextColor.YELLOW));
+            return false; // 수정: 잘못된 사용 시 false 반환
         }
 
-        // 라운드 관리 명령어 (/round)
-        if (command.getName().equalsIgnoreCase("round")) {
-            if (!sender.hasPermission("plugin.round")) {
-                player.sendMessage("§c 관리자 권한이 없어 실행되지 않습니다.");
-                return true;
-            }
+        String subCommand = args[0].toLowerCase();
+        int targetRound;
+        int currentValue = gameManager.getCurrentRound();
 
-            // 게임 진행 중에만 사용 가능
-            if (!plugin.gameInProgress) {
-                player.sendMessage("§c이 명령어는 게임 진행 중에만 사용할 수 있습니다.");
-                return true;
-            }
-
-            // 최소 인자 개수 확인 (서브커맨드)
-            if (args.length < 1) {
-                player.sendMessage("§e 사용법: /round [add|remove|reset|set] <값>");
-                return true;
-            }
-
-            String subCommand = args[0].toLowerCase(); // 서브커맨드를 소문자로 변환
-            int targetRound; // 최종 설정될 라운드 값
-            int value; // add, remove, set 에 사용될 값 (초기화 불필요)
-
+        try {
             switch (subCommand) {
                 case "set":
                 case "add":
                 case "remove":
-                    // 값 인자가 필요한 서브커맨드: 인자 개수 및 숫자 유효성 검사
-                    if (args.length < 2) {
-                        player.sendMessage("§e 사용법: /round " + subCommand + " <값>");
-                        return true;
-                    }
-                    try {
-                        value = Integer.parseInt(args[1]);
-                    } catch (NumberFormatException e) {
-                        player.sendMessage("§c 유효한 숫자를 입력해주세요.");
-                        return true;
-                    }
-
-                    // add, remove, set 에 따라 targetRound 계산
-                    if ("set".equals(subCommand)) {
-                        targetRound = value;
-                    } else if ("add".equals(subCommand)) {
-                        targetRound = plugin.currentRound + value;
-                    } else { // remove
-                        targetRound = plugin.currentRound - value;
-                    }
+                    if (args.length < 2) throw new IllegalArgumentException("값이 필요합니다.");
+                    targetRound = parseRoundValue(subCommand, currentValue, args[1]);
                     break;
-
                 case "reset":
-                    // reset은 인자가 필요 없음: 인자 개수 검사
-                    if (args.length > 1) {
-                        player.sendMessage("§e 사용법: /round reset");
-                        return true;
-                    }
+                    if (args.length > 1) throw new IllegalArgumentException("값이 필요하지 않습니다.");
                     targetRound = 1;
                     break;
-
                 default:
-                    player.sendMessage("§c알 수 없는 명령어입니다. [add|remove|reset|set]");
-                    return true; // 명령어 처리 중단
+                    // 알 수 없는 서브커맨드 시 false 반환
+                    // player.sendMessage(Component.text("알 수 없는 명령어입니다. [add|remove|reset|set]", NamedTextColor.RED));
+                    return false; // 수정: 잘못된 사용 시 false 반환
             }
-
-            // 최종 라운드 값이 1 미만일 경우 1로 설정
-            if (targetRound < 1) {
-                targetRound = 1;
-            }
-
-            // 라운드 변경 및 게임 상태 초기화 로직 실행
-            player.sendMessage("§e게임 상태를 초기화하고 라운드를 " + targetRound + "로 변경합니다.");
-
-            // 현재 게임을 중단하고 새 라운드로 재시작하는 로직을 다음 틱에 실행
-            int finalTargetRound = targetRound;
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                plugin.stopGame();
-                plugin.currentRound = finalTargetRound;
-
-                // 스코어보드에 새로운 라운드 번호 즉시 반영
-                if (plugin.gameScoreboard != null) {
-                    plugin.gameScoreboard.updateScore("라운드", plugin.currentRound);
-                } else {
-                    plugin.getLogger().warning("gameScoreboard is null when trying to update round score via /round command.");
-                }
-                plugin.startGame();
-            });
-
-            return true;
+        } catch (NumberFormatException e) {
+            // 숫자 형식 오류 시 false 반환
+            // player.sendMessage(Component.text("유효한 숫자를 입력해주세요.", NamedTextColor.RED));
+            return false; // 수정: 잘못된 사용 시 false 반환
+        } catch (IllegalArgumentException e) {
+            // 인자 개수 오류 시 false 반환
+            // player.sendMessage(Component.text("사용법: /round " + subCommand + ..., NamedTextColor.YELLOW));
+            return false; // 수정: 잘못된 사용 시 false 반환
         }
 
-        return false; // CustomCommand 에서 처리하지 않은 다른 명령어 (plugin.yml에 등록되지 않은 명령어 등)
+
+        targetRound = Math.max(1, targetRound);
+
+        player.sendMessage(Component.text("게임 상태를 초기화하고 라운드를 " + targetRound + "로 변경합니다.", NamedTextColor.YELLOW));
+
+        final int finalTargetRound = targetRound;
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            gameManager.stopGame();
+            gameManager.setCurrentRound(finalTargetRound);
+            gameManager.startGame();
+        });
+
+        return true; // 성공적으로 명령 처리 시작 시 true
     }
+
+    /**
+     * /round 명령어의 값을 파싱하고 계산하는 헬퍼 메서드
+     * @param subCommand 서브커맨드 (set, add, remove)
+     * @param currentValue 현재 라운드 값
+     * @param valueArg 파싱할 값 문자열
+     * @return 계산된 목표 라운드
+     * @throws NumberFormatException 값이 숫자가 아닐 경우
+     */
+    private int parseRoundValue(String subCommand, int currentValue, String valueArg) throws NumberFormatException {
+        int value = Integer.parseInt(valueArg);
+        return switch (subCommand) {
+            case "set" -> value;
+            case "add" -> currentValue + value;
+            case "remove" -> currentValue - value;
+            default -> currentValue; // 도달할 수 없음 (호출 전에 체크됨)
+        };
+    }
+
 
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, String @NotNull [] args) {
+        String commandName = command.getName().toLowerCase();
 
-        // '/get-item' 명령어 탭 자동 완성
-        if (command.getName().equalsIgnoreCase("get-item")) {
-            return getGetItemCompletions(args); // Delegate to helper method
+        if (commandName.equals("get-item")) {
+            return getGetItemCompletions(args);
         }
 
-        // '/round' 명령어 탭 자동 완성
-        if (command.getName().equalsIgnoreCase("round")) {
-            return getRoundCompletions(sender, args); // Delegate to helper method
+        if (commandName.equals("round")) {
+            return getRoundCompletions(sender, args);
         }
 
-        // CustomCommand 에서 처리하지 않는 다른 명령어는 기본 Bukkit 자동 완성 사용
-        return null; // null을 반환하면 Bukkit의 기본 자동 완성 기능이 동작합니다 (예: 플레이어 이름 완성)
+        return null;
     }
 
-    //get-item 명령어 탭 자동 완성 로직을 분리한 헬퍼 메서드
     private List<String> getGetItemCompletions(String[] args) {
         List<String> completions = new ArrayList<>();
+        String currentArg = args[args.length - 1].toLowerCase();
 
-        // 첫 번째 인자에서 'all' 옵션 추가 및 아이템 이름 제안
         if (args.length == 1) {
-            String partialArg = args[0].toLowerCase();
-            if ("all".startsWith(partialArg)) {
+            if ("all".startsWith(currentArg)) {
                 completions.add("all");
             }
-            // 등록된 아이템 이름 자동완성
             for (String itemName : itemMap.keySet()) {
-                if (itemName.startsWith(partialArg)) {
+                if (itemName.startsWith(currentArg)) {
                     completions.add(itemName);
                 }
             }
@@ -268,25 +308,19 @@ public class CustomCommand implements CommandExecutor, TabCompleter {
         return completions;
     }
 
-    //round 명령어 탭 자동 완성 로직을 분리한 헬퍼 메서드
     private List<String> getRoundCompletions(CommandSender sender, String[] args) {
         List<String> completions = new ArrayList<>();
-
         if (!sender.hasPermission("plugin.round")) {
             return completions;
         }
 
+        String currentArg = args[args.length - 1].toLowerCase();
+
         if (args.length == 1) {
-            String partialCommand = args[0].toLowerCase();
             for (String sub : ROUND_SUBCOMMANDS) {
-                if (sub.startsWith(partialCommand)) {
+                if (sub.startsWith(currentArg)) {
                     completions.add(sub);
                 }
-            }
-        } else if (args.length == 2) {
-            String subCommand = args[0].toLowerCase();
-            if ("add".equals(subCommand) || "remove".equals(subCommand) || "set".equals(subCommand)) {
-                return completions;
             }
         }
         return completions;

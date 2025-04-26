@@ -34,11 +34,6 @@ public class HeatSystem {
 
     private final JavaPlugin plugin;
     private final Map<Player, Integer> temperatureLevels = new HashMap<>();
-    // 0: 매우 추움 (온도 <= -2)
-    // 1: 추움     (온도 -1)
-    // 2: 정상     (온도 0)
-    // 3: 더움     (온도 1)
-    // 4: 매우 더움 (온도 >= 2)
     private final String[] temperatureStates = {"매우 추움", "추움", "정상", "더움", "매우 더움"};
 
 
@@ -185,18 +180,10 @@ public class HeatSystem {
             return "매우 추움" + "!".repeat(TEMPERATURE_VERY_COLD_THRESHOLD - temp); // -3 이하일 경우 '!' 추가
         }
         else {
-            // 이 else 블록에 들어오는 temp 값의 범위는 -2 <= temp <= 2 입니다.
-            // 온도 레벨과 temperatureStates 배열의 인덱스를 매핑합니다.
-            // 배열 인덱스: 0:매우 추움, 1:추움, 2:정상, 3:더움, 4:매우 더움
-            // 온도 레벨:   -2,        -1,    0,     1,     2
-            // 매핑 규칙: index = temp + 2
             int stateIndex = temp + 2;
-
-            // 계산된 인덱스가 배열 범위를 벗어나지 않도록 안전장치를 추가합니다.
-            // 이 else 블록 범위 (-2 ~ 2) 와 배열 길이 (5, 인덱스 0 ~ 4)를 고려한 안전 장치
             stateIndex = Math.max(0, Math.min(temperatureStates.length - 1, stateIndex));
 
-            return temperatureStates[stateIndex]; // 계산된 stateIndex 를 사용하여 배열 접근
+            return temperatureStates[stateIndex];
         }
     }
 }
